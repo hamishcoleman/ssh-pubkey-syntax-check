@@ -11,12 +11,18 @@ use MIME::Base64;
 
 my $config = {
     check_duplicate_hostnames => 1,
-    check_duplicate_keys      => 1,
+    check_duplicate_keys      => 0,
+    errorcount_max            => 15,
 };
 
 my $db = {};
-my $error = 0;
-my $errorcount = 0;
+
+# By default, we have no errors
+$db->{errors}{exitcode} = 0;
+
+sub current_line {
+    return join('',$ARGV,':',$.);
+}
 
 # Report an error in the current line to the user.
 # If we get too many errors, abort the run.
@@ -25,16 +31,16 @@ sub error {
     my $error_new = shift;
 
     # TODO - make the new value the 'worst' of the two
-    $error = $error_new;
+    $db->{errors}{exitcode} = $error_new;
 
-    my $message = join('',$ARGV,":",$.," ",@_);
-    push @{$db->{errors}},$message;
-    warn($message,"\n");
+    my $message = join('',current_line(),' ',@_);
+    push @{$db->{errors}{log}},$message;
+    print($message,"\n");
 
-    $errorcount++;
-    if ($errorcount>15) {
+    $db->{errors}{count}++;
+    if ($db->{errors}{count}>$config->{errorcount_max}) {
         warn("Too many errors, aborting any remaining checks\n");
-        exit $error;
+        exit $db->{errors}{exitcode};
     }
 }
 
@@ -145,6 +151,8 @@ sub check_key_type {
 # that it has discovered a new hostname
 #
 sub discover_hostnames {
+    my $current_line = shift;
+    my $hostname = shift;
     my $key_type = shift;
     my @hostnames = @_;
 
@@ -164,12 +172,15 @@ sub discover_hostnames {
     for my $host (@hostnames) {
         # give an error if we have already seen this host/type combo
         if (defined($db->{hostname}{$key_type}{$host})) {
-            error(1,"Duplicate Hostname+Keytype: ",$host," ",$key_type);
+            error(1,
+                "Duplicate Hostname: ",$host," ",$key_type," ",
+                "(First seen at ",$db->{hostname}{$key_type}{$host},")"
+            );
             $return=undef;
         }
 
         # note that we have seen this host/type combo
-        $db->{hostname}{$key_type}{$host}++;
+        $db->{hostname}{$key_type}{$host}=$current_line;
     }
     return $return;
 }
@@ -178,6 +189,8 @@ sub discover_hostnames {
 # that it has discovered a new key
 #
 sub discover_key {
+    my $current_line = shift;
+    my $hostname = shift;
     my $key_type = shift;
     my $key = shift;
 
@@ -188,12 +201,15 @@ sub discover_key {
 
     # give an error if we have already seen this key
     if (defined($db->{key}{$key})) {
-        error(1,"Duplicate Key");
+        error(1,
+            "Duplicate ",$key_type," Key in ",$hostname,
+            " (First seen at ",$db->{key}{$key},")"
+        );
         return undef;
     }
 
     # note that we have seen this host/type combo
-    $db->{key}{$key}++;
+    $db->{key}{$key}=$current_line.':'.$hostname;
 
     return 1;
 }
@@ -236,6 +252,9 @@ sub check_known_host_line {
         return undef;
     }
 
+    # we use the first hostname on the line to reference this in messages
+    my $hostname;
+
     my $key_type = $f[1];
 
 #  Hashed hostnames start with a "|" character.  Only one hashed hostname
@@ -244,6 +263,7 @@ sub check_known_host_line {
 
     if ($f[0] =~ m/^\|/) {
         # this is a hashed hostname
+        $hostname = $f[0];
 
         if ($f[0] =~ m/[*?!,]/) {
             error(1,"Invalid operators in hashed hostname");
@@ -251,9 +271,10 @@ sub check_known_host_line {
 
         # TODO - could check the fields internal to the hashed value
 
-        discover_hostnames($key_type,$f[0]);
+        discover_hostnames($key_type,$hostname,$f[0]);
     } else {
         my @hosts = split(/,/,$f[0]);
+        $hostname = $hosts[0];
 
 #  A hostname or address may optionally be enclosed within "[" and "]"
 #  brackets then followed by ":" and a non-standard port number.
@@ -269,7 +290,7 @@ sub check_known_host_line {
             }
         }
 
-        discover_hostnames($key_type,@hosts);
+        discover_hostnames(current_line(),$hostname,$key_type,@hosts);
     }
 
 
@@ -279,7 +300,7 @@ sub check_known_host_line {
     if (!check_encoded_key($key_type,$f[2])) {
         return undef;
     }
-    discover_key($key_type,$f[2]);
+    discover_key(current_line(),$hostname,$key_type,$f[2]);
 
     return 1;
 }
@@ -298,4 +319,4 @@ while(<>) {
     close ARGV if eof;
 }
 
-exit $error;
+exit $db->{errors}{exitcode};
