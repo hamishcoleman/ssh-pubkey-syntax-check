@@ -10,7 +10,8 @@ use strict;
 use MIME::Base64;
 
 my $config = {
-    check_duplicate_hostnames => 1
+    check_duplicate_hostnames => 1,
+    check_duplicate_keys      => 1,
 };
 
 my $db = {};
@@ -173,6 +174,30 @@ sub discover_hostnames {
     return $return;
 }
 
+# As the line checker finds keys, it calls this function to let it know
+# that it has discovered a new key
+#
+sub discover_key {
+    my $key_type = shift;
+    my $key = shift;
+
+    if (!$config->{check_duplicate_keys}) {
+        # nothing to be done
+        return 1;
+    }
+
+    # give an error if we have already seen this key
+    if (defined($db->{key}{$key})) {
+        error(1,"Duplicate Key");
+        return undef;
+    }
+
+    # note that we have seen this host/type combo
+    $db->{key}{$key}++;
+
+    return 1;
+}
+
 
 sub check_known_host_line {
     my ($line) = @_;
@@ -254,6 +279,8 @@ sub check_known_host_line {
     if (!check_encoded_key($key_type,$f[2])) {
         return undef;
     }
+    discover_key($key_type,$f[2]);
+
     return 1;
 }
 
