@@ -9,26 +9,37 @@ use strict;
 
 use MIME::Base64;
 
+my $config = {
+    check_duplicate_hostnames => 1
+};
+
+my $db = {};
 my $error = 0;
 my $errorcount = 0;
 
+# Report an error in the current line to the user.
+# If we get too many errors, abort the run.
+#
 sub error {
     my $error_new = shift;
 
     # TODO - make the new value the 'worst' of the two
     $error = $error_new;
 
-    # TODO - make this look prettier;
-    warn($ARGV,":",$.," ",@_,"\n");
+    my $message = join('',$ARGV,":",$.," ",@_);
+    push @{$db->{errors}},$message;
+    warn($message,"\n");
 
     $errorcount++;
-    if ($errorcount>10) {
-        die("Too many errors, aborting remaining checks");
+    if ($errorcount>15) {
+        warn("Too many errors, aborting any remaining checks\n");
         exit $error;
     }
 }
 
-sub get_lvr {
+# Decode one chunk of the binary key
+#
+sub get_val_remain {
     my ($binary) = @_;
 
     if (length($binary)<4) {
@@ -39,18 +50,19 @@ sub get_lvr {
     my ($len) = unpack('N',$binary);
     my ($val) = unpack('N/a',$binary);
 
-    if ($len>(length($binary)+4)) {
+    if ($len>length($val)) {
         # this length value ran us off the end of the binary
         return undef;
     }
 
-    return ($len,$val,substr($binary,$len+4));
+    return ($val,substr($binary,$len+4));
 }
 
-sub check_key {
+sub check_encoded_key {
     my ($type,$encoded) = @_;
 
-    # encoded is a base64 encoded array of len,val pairs (len is u32 value)
+    # we are passed a base64 encoded array of len,val pairs (len is
+    # u32 value)
 
     # TODO
     # - use a better base64 function that actually reports errors
@@ -84,11 +96,11 @@ sub check_key {
         return undef;
     }
 
-    my ($len,$val);
+    my $val;
     my @fields;
     while (length($binary)) {
-        ($len,$val,$binary) = get_lvr($binary);
-        if (!defined($len)) {
+        ($val,$binary) = get_val_remain($binary);
+        if (!defined($val)) {
             error(1,"key structure length/val error");
             return undef;
         }
@@ -99,7 +111,9 @@ sub check_key {
         error(1,"Key type does not match encoded key");
         return undef;
     }
-    # TODO - check field 0 against known key types
+
+    # The key type can also be checked against a list of known good types
+    # earlier in the process - so we dont need to double-check that here.
         
     # TODO - check other fields against correct values?
 
@@ -110,13 +124,58 @@ sub check_key {
     return 1;
 }
 
-while(<>) {
-    chomp;
+sub check_key_type {
+    my ($key_type) = @_;
 
-# Lines starting with "#" and empty lines are ignored as comments.
-    next if( m/^#/ );
-    next if( m/^$/ );
+    # FIXME - this is not an exhaustive list..
 
+         if ($key_type =~ m/^ssh-dss$/) {
+    } elsif ($key_type =~ m/^ssh-rsa$/) {
+    } elsif ($key_type =~ m/^ecdsa-sha2-nistp256$/) {
+    } else {
+        error(1,"Unknown key type");
+        return undef;
+    }
+    return 1;
+}
+
+
+# As the line checker finds hostnames, it calls this function to let it know
+# that it has discovered a new hostname
+#
+sub discover_hostnames {
+    my $key_type = shift;
+    my @hostnames = @_;
+
+    if (!$config->{check_duplicate_hostnames}) {
+        # nothing to be done
+        return 1;
+    }
+
+#  It is permissible (but not recommended) to have several lines or
+#  different host keys for the same names.  This will inevitably happen
+#  when short forms of host names from different domains are put in the
+#  file.  It is possible that the files contain conflicting information;
+#  authentication is accepted if valid information can be found from
+#  either file.
+
+    my $return=1;
+    for my $host (@hostnames) {
+        # give an error if we have already seen this host/type combo
+        if (defined($db->{hostname}{$key_type}{$host})) {
+            error(1,"Duplicate Hostname+Keytype: ",$host," ",$key_type);
+            $return=undef;
+        }
+
+        # note that we have seen this host/type combo
+        $db->{hostname}{$key_type}{$host}++;
+    }
+    return $return;
+}
+
+
+sub check_known_host_line {
+    my ($line) = @_;
 
 # from sshd(8):
 #  Each line in these files contains the following fields: markers
@@ -126,35 +185,37 @@ while(<>) {
 # This is partially inaccurate: markers,host-names,type,encoded,comment is the
 # observed format
 
-    my @f = split(/ /,$_);
+    my @f = split(/ /,$line);
 
-# The marker is optional, but if it is present then it must be one of
-# "@cert-authority", to indicate that the line contains a certification
-# authority (CA) key, or "@revoked", to indicate that the key contained
-# on the line is revoked and must not ever be accepted.  Only one marker
-# should be used on a key line.
+#  The marker is optional, but if it is present then it must be one of
+#  "@cert-authority", to indicate that the line contains a certification
+#  authority (CA) key, or "@revoked", to indicate that the key contained
+#  on the line is revoked and must not ever be accepted.  Only one marker
+#  should be used on a key line.
 
     if ($f[0] =~ m/^@/) {
+        # this is a marker field
         # TODO - should we confirm that it is one of the two allowed values?
-
         shift @f;
     }
 
-    # We now know that there is no marker, so check for too many otherfields
-    if (scalar(@f)>4) {
-        error(1,"Too many fields");
-    }
+#  The optional comment field continues to the end of the line, and is
+#  not used.
+# TODO - optionally look at the comment (and perhaps complain)
 
-# Hashed hostnames start with a "|" character.  Only one hashed hostname
-# may appear on a single line and none of the above negation or wildcard
-# operators may be applied.
-
+    # We now know that there is no marker, so check for enough fields
     if (scalar(@f)<3) {
         error(1,"Too few fields");
 
-        # With not enough fields, we cannot really continue checking
-        next;
+        # Without enough fields, we cannot really continue checking
+        return undef;
     }
+
+    my $key_type = $f[1];
+
+#  Hashed hostnames start with a "|" character.  Only one hashed hostname
+#  may appear on a single line and none of the above negation or wildcard
+#  operators may be applied.
 
     if ($f[0] =~ m/^\|/) {
         # this is a hashed hostname
@@ -162,13 +223,15 @@ while(<>) {
         if ($f[0] =~ m/[*?!,]/) {
             error(1,"Invalid operators in hashed hostname");
         }
+
+        # TODO - could check the fields internal to the hashed value
+
+        discover_hostnames($key_type,$f[0]);
     } else {
         my @hosts = split(/,/,$f[0]);
 
-        # TODO - could split out the hostnames here and check they are sane
-
-# A hostname or address may optionally be enclosed within "[" and "]"
-# brackets then followed by ":" and a non-standard port number.
+#  A hostname or address may optionally be enclosed within "[" and "]"
+#  brackets then followed by ":" and a non-standard port number.
 
         for my $host (@hosts) {
             if ($host =~ m/\[/) {
@@ -180,20 +243,31 @@ while(<>) {
                 }
             }
         }
+
+        discover_hostnames($key_type,@hosts);
     }
 
-         if ($f[1] =~ m/^ssh-dss$/) {
-    } elsif ($f[1] =~ m/^ssh-rsa$/) {
-    } elsif ($f[1] =~ m/^ecdsa-sha2-nistp256$/) {
-    } else {
-        error(1,"Unknown key type");
-    }
 
-    if (!check_key($f[1],$f[2])) {
-        next;
+    if (!check_key_type($key_type)) {
+        return undef;
     }
+    if (!check_encoded_key($key_type,$f[2])) {
+        return undef;
+    }
+    return 1;
+}
+
+while(<>) {
+    chomp;
+
+# Lines starting with "#" and empty lines are ignored as comments.
+    next if( m/^#/ );
+    next if( m/^$/ );
+
+    check_known_host_line($_);
 
 } continue {
+    # Ensure that the $. value is correct across multiple input files
     close ARGV if eof;
 }
 
