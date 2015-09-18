@@ -135,6 +135,7 @@ sub check_key_type {
     my ($key_type) = @_;
 
     # FIXME - this is not an exhaustive list..
+    # - use "ssh -Q key" to get the current list
 
          if ($key_type =~ m/^ssh-dss$/) {
     } elsif ($key_type =~ m/^ssh-rsa$/) {
