@@ -272,7 +272,7 @@ sub check_known_host_line {
 
         # TODO - could check the fields internal to the hashed value
 
-        discover_hostnames($key_type,$hostname,$f[0]);
+        discover_hostnames(current_line(),$hostname,$key_type,$f[0]);
     } else {
         my @hosts = split(/,/,$f[0]);
         $hostname = $hosts[0];
