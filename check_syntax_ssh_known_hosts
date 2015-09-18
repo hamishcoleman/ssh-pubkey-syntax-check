@@ -20,6 +20,24 @@ my $db = {};
 # By default, we have no errors
 $db->{errors}{exitcode} = 0;
 
+sub populate_ssh_keytypes {
+    my @list = `ssh -Q key`;
+
+    if (!scalar(@list)) {
+        # if the ssh is too old to support this query, use a hardcoded list
+        @list = qw(
+            ssh-dss
+            ssh-rsa
+            ecdsa-sha2-nistp256
+        );
+    }
+
+    for my $i (@list) {
+        chomp $i;
+        $db->{ssh}{query}{key}{$i} ++;
+    }
+}
+
 sub current_line {
     return join('',$ARGV,':',$.);
 }
@@ -134,13 +152,7 @@ sub check_encoded_key {
 sub check_key_type {
     my ($key_type) = @_;
 
-    # FIXME - this is not an exhaustive list..
-    # - use "ssh -Q key" to get the current list
-
-         if ($key_type =~ m/^ssh-dss$/) {
-    } elsif ($key_type =~ m/^ssh-rsa$/) {
-    } elsif ($key_type =~ m/^ecdsa-sha2-nistp256$/) {
-    } else {
+    if (!$db->{ssh}{query}{key}{$key_type}) {
         error(1,"Unknown key type");
         return undef;
     }
@@ -305,6 +317,8 @@ sub check_known_host_line {
 
     return 1;
 }
+
+populate_ssh_keytypes();
 
 while(<>) {
     chomp;
