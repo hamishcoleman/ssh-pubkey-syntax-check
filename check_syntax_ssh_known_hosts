@@ -21,7 +21,7 @@ my $db = {};
 $db->{errors}{exitcode} = 0;
 
 sub populate_ssh_keytypes {
-    my @list = `ssh -Q key`;
+    my @list = `ssh -Q key 2>/dev/null`;
 
     if (!scalar(@list)) {
         # if the ssh is too old to support this query, use a hardcoded list
