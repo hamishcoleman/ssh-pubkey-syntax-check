@@ -1,0 +1,58 @@
+
+Keeping a well maintained ssh known hosts database
+==================================================
+
+Introduction
+------------
+
+This check_syntax_ssh_known_hosts tool is one simple way to help keep
+your known hosts file free of simple errors.
+
+If you are keeping your ssh known hosts details in your configuration
+management source repository (which is highly recommended) and you have
+not yet scaled out and automated the entirety of your archtecture then
+you may find that the simplest correct answer is to just have the raw
+ssh known hosts file as something that is hand edited when the well-known
+hosts need changing.
+
+In that scenario, it is useful to have a syntax checker that will keep
+errors from creeping into the file.
+
+
+TODO:
+
+The attacks
+-----------
+
+The solution
+------------
+
+Actually, there are lots of solutions
+-------------------------------------
+
+
+
+
+
+Things to include in this document:
+-----------------------------------
+
+What is the ssh_known_host file?
+What does it protect you from?
+
+"nobody is expecting MITM" - this is a key attack problem
+
+How do you start keeping one?
+
+What about certificates?
+
+Tools that can help
+
+Build checks
+
+Distributing the file
+
+Understanding what has changed
+
+Puppet facts
+
