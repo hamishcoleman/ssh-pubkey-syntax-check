@@ -15,25 +15,23 @@ my $config = {
     errorcount_max            => 15,
 };
 
+BEGIN {
+    use File::Spec;
+    # allow the libs to be in the bin dir
+    unshift @INC, File::Spec->catdir((File::Spec->splitpath($0))[1],'lib');
+}
+
+use SSH::Keys;
+
 my $db = {};
 
 # By default, we have no errors
 $db->{errors}{exitcode} = 0;
 
 sub populate_ssh_keytypes {
-    my @list = `ssh -Q key 2>/dev/null`;
-
-    if (!scalar(@list)) {
-        # if the ssh is too old to support this query, use a hardcoded list
-        @list = qw(
-            ssh-dss
-            ssh-rsa
-            ecdsa-sha2-nistp256
-        );
-    }
+    my @list = SSH::Keys::_keytypes();
 
     for my $i (@list) {
-        chomp $i;
         $db->{ssh}{query}{key}{$i} ++;
     }
 }
