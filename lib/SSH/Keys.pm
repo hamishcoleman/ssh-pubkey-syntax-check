@@ -5,6 +5,7 @@ use strict;
 #
 #
 
+# Return a list of valid ssh key types
 sub _keytypes {
     my @list = `ssh -Q key 2>/dev/null`;
 
@@ -17,9 +18,9 @@ sub _keytypes {
         );
     }
 
-    #    for my $i (@list) {
-    #    chomp $i;
-    #}
+    for my $i (@list) {
+        chomp $i;
+    }
 
     return @list;
 }
