@@ -21,7 +21,7 @@ BEGIN {
     unshift @INC, File::Spec->catdir((File::Spec->splitpath($0))[1],'lib');
 }
 
-use SSH::Keys;
+use SSH::Key;
 
 my $db = {};
 
@@ -29,7 +29,7 @@ my $db = {};
 $db->{errors}{exitcode} = 0;
 
 sub populate_ssh_keytypes {
-    my @list = SSH::Keys::_keytypes();
+    my @list = SSH::Key::_keytypes();
 
     for my $i (@list) {
         $db->{ssh}{query}{key}{$i} ++;
@@ -101,7 +101,7 @@ sub check_encoded_key {
     my $val;
     my @fields;
     while (length($binary)) {
-        ($val,$binary) = SSH::Keys::_extract_next_keypart($binary);
+        ($val,$binary) = SSH::Key::_extract_next_keypart($binary);
         if (!defined($val)) {
             error(1,"key structure length/val error");
             return undef;

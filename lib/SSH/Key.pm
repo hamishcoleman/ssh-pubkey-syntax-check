@@ -1,4 +1,4 @@
-package SSH::Keys;
+package SSH::Key;
 use warnings;
 use strict;
 #
