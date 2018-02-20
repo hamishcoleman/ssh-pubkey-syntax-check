@@ -25,4 +25,26 @@ sub _keytypes {
     return @list;
 }
 
+# Given a binary key fragment, extract the next chunk
+sub _extract_next_keypart {
+    my ($binary) = @_;
+
+    if (length($binary)<4) {
+        # not even room for the length field
+        return undef;
+    }
+
+    my ($len) = unpack('N',$binary);
+    my ($val) = unpack('N/a',$binary);
+
+    if ($len>length($val)) {
+        # this length value ran us off the end of the binary
+        return undef;
+    }
+
+    return ($val,substr($binary,$len+4));
+}
+
+
+
 1;

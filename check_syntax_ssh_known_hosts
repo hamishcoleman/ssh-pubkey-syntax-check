@@ -60,27 +60,6 @@ sub error {
     }
 }
 
-# Decode one chunk of the binary key
-#
-sub get_val_remain {
-    my ($binary) = @_;
-
-    if (length($binary)<4) {
-        # not even room for the length field
-        return undef;
-    }
-
-    my ($len) = unpack('N',$binary);
-    my ($val) = unpack('N/a',$binary);
-
-    if ($len>length($val)) {
-        # this length value ran us off the end of the binary
-        return undef;
-    }
-
-    return ($val,substr($binary,$len+4));
-}
-
 sub check_encoded_key {
     my ($type,$encoded) = @_;
 
@@ -122,7 +101,7 @@ sub check_encoded_key {
     my $val;
     my @fields;
     while (length($binary)) {
-        ($val,$binary) = get_val_remain($binary);
+        ($val,$binary) = SSH::Keys::_extract_next_keypart($binary);
         if (!defined($val)) {
             error(1,"key structure length/val error");
             return undef;
