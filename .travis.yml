@@ -1,2 +1,4 @@
 language: perl
 
+script:
+    - make test
