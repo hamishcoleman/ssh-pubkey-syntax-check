@@ -1,0 +1,11 @@
+
+# blank lines and lines starting with hash are considered comments
+
+# 3 fields required (the comment is techinically optional, but humans want to
+# read something)
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGyWNNtnkAhNk2E2qwN0bFcQijYY+JQ1LoC0N4LdZzVo test@machine
+
+ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAv2ESgjKNAGcE+upDExS4Zt9mRT4UQdHGsfbFqypovqpzPc/NggaN0q1Q9rjbewt8UQOEu/7vYTAdoSVsfEautcYu4yRzJHBTz64KHLtJq6h9SluiS0qRvkI638KVb1F3TlvHW3buo3rm/eggA3SFhS+QJQP+XgEEuJKlf8MrcAs= someone@someothermachine
+
+# TODO
+# - when decoding option fields are supported add some examples here

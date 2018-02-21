@@ -1,0 +1,163 @@
+#!/usr/bin/env perl
+use warnings;
+use strict;
+#
+# Read as input one or more ssh authorized keys files
+#
+# Generate errors for any lines that have syntax errors
+#
+
+use MIME::Base64;
+
+my $config = {
+    check_duplicate_keys      => 1,
+    errorcount_max            => 15,
+};
+
+BEGIN {
+    use File::Spec;
+    # allow the libs to be in the bin dir
+    unshift @INC, File::Spec->catdir((File::Spec->splitpath($0))[1],'lib');
+}
+
+use SSH::Key;
+use SSH::Authorized_Key;
+
+my $db = {};
+
+# By default, we have no errors
+$db->{errors}{exitcode} = 0;
+
+sub populate_ssh_keytypes {
+    my @list = SSH::Key::_keytypes();
+
+    for my $i (@list) {
+        $db->{ssh}{query}{key}{$i} ++;
+    }
+}
+
+sub current_line {
+    return join('',$ARGV,':',$.);
+}
+
+# Report an error in the current line to the user.
+# If we get too many errors, abort the run.
+#
+sub error {
+    my $error_new = shift;
+
+    # TODO - make the new value the 'worst' of the two
+    $db->{errors}{exitcode} = $error_new;
+
+    my $message = join('',current_line(),' ',@_);
+    push @{$db->{errors}{log}},$message;
+    print($message,"\n");
+
+    $db->{errors}{count}++;
+    if ($db->{errors}{count}>$config->{errorcount_max}) {
+        warn("Too many errors, aborting any remaining checks\n");
+        exit $db->{errors}{exitcode};
+    }
+}
+
+sub check_encoded_key {
+    my ($type,$encoded) = @_;
+
+    my $key = SSH::Key->new();
+
+    if (!defined($key->parse($encoded))) {
+        error(1, $key->error());
+        return undef;
+    }
+
+    if ($type ne $key->type()) {
+        error(1,"Key type does not match encoded key");
+        return undef;
+    }
+
+    # The key type can also be checked against a list of known good types
+    # earlier in the process - so we dont need to double-check that here.
+    return 1;
+}
+
+sub check_key_type {
+    my ($key_type) = @_;
+
+    if (!$db->{ssh}{query}{key}{$key_type}) {
+        error(1,"Unknown key type");
+        return undef;
+    }
+    return 1;
+}
+
+# As the line checker finds keys, it calls this function to let it know
+# that it has discovered a new key
+#
+sub discover_key {
+    my $current_line = shift;
+    my $key_type = shift;
+    my $key = shift;
+
+    if (!$config->{check_duplicate_keys}) {
+        # nothing to be done
+        return 1;
+    }
+
+    # give an error if we have already seen this key
+    if (defined($db->{key}{$key})) {
+        error(1,
+            "Duplicate ",$key_type," Key",
+            " (First seen at ",$db->{key}{$key},")"
+        );
+        return undef;
+    }
+
+    # note that we have seen this host/type combo
+    $db->{key}{$key}=$current_line;
+
+    return 1;
+}
+
+
+sub check_authorized_keys_line {
+    my ($line) = @_;
+
+    my $auth = SSH::Authorized_Key->new();
+
+    if (!defined($auth->parse($line))) {
+        error(1, $auth->error());
+        return undef;
+    }
+
+    if (!check_key_type($auth->key_type())) {
+        return undef;
+    }
+    if (!check_encoded_key($auth->key_type(),$auth->key())) {
+        return undef;
+    }
+    discover_key(
+        current_line(),
+        $auth->key_type(),
+        $auth->key(),
+    );
+
+    return 1;
+}
+
+populate_ssh_keytypes();
+
+while(<>) {
+    chomp;
+
+# Lines starting with "#" and empty lines are ignored as comments.
+    next if( m/^#/ );
+    next if( m/^$/ );
+
+    check_authorized_keys_line($_);
+
+} continue {
+    # Ensure that the $. value is correct across multiple input files
+    close ARGV if eof;
+}
+
+exit $db->{errors}{exitcode};
