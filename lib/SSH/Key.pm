@@ -48,6 +48,8 @@ sub parse {
         $self->error("Base64 key decode error");
         return undef;
     }
+    # stash the binary for debugging
+    $self->{binary} = $binary;
 
     if (!length($binary)) {
         $self->error("key length error");
@@ -55,14 +57,13 @@ sub parse {
     }
 
     my $val;
-    my @fields;
     while (length($binary)) {
         ($val,$binary) = _extract_next_keypart($binary);
         if (!defined($val)) {
             $self->error("key structure length/val error");
             return undef;
         }
-        push @fields,$val;
+        push @{$self->{fields}}, $val;
     }
 
     # TODO - check the none name fields against correct values?
@@ -72,8 +73,7 @@ sub parse {
     # - ssh-rsa == 6?
 
     $self->{encoded} = $encoded;
-    $self->{fields} = \@fields;
-    $self->{type} = $fields[0];
+    $self->{type} = $self->{fields}[0];
 
     delete $self->{error};
     return $self;
