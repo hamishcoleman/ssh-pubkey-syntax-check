@@ -85,6 +85,13 @@ sub type {
     return $self->{type};
 }
 
+# TODO
+# sub is_weak
+#   however, "weak" might be a site-dependant value
+# sub check_keytype
+#   ensure that the type is on the list of ssh supported key types
+#   (probably should be done as part of the parse)
+
 # get/set error message
 sub error {
     my $self = shift;
