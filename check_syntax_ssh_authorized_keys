@@ -147,6 +147,11 @@ sub check_authorized_keys_line {
 populate_ssh_keytypes();
 
 while(<>) {
+    # All lines myst end with a newline - otherwise concatenation of files
+    # will have failure modes
+    if (! m/\n$/) {
+        error(1, "Line ends without a newline character");
+    }
     chomp;
 
 # Lines starting with "#" and empty lines are ignored as comments.
