@@ -15,6 +15,7 @@ build_dep:
 install: clean
 	mkdir -p $(INSTALLBIN)
 	cp -pr check_syntax_ssh_known_hosts $(INSTALLBIN)
+	cp -pr check_syntax_ssh_authorized_keys $(INSTALLBIN)
 
 tar: $(tarfile)
 
