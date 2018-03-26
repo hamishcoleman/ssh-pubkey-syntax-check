@@ -22,7 +22,12 @@ sub hexdump(\$) {
             # we have more than one line, so end the previous one first
             $r.="\n";
         }
-        my @buf16= split //, substr($$buf,$offset,16);
+        my $rowlen = 16;
+        if ($offset+$rowlen > $size) {
+            $rowlen = $size - $offset;
+        }
+
+        my @buf16= split //, substr($$buf,$offset,$rowlen);
         $r.=sprintf('%03x: ',$offset);
         for my $i (0..15) {
             if (defined $buf16[$i]) {
