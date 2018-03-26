@@ -12,51 +12,13 @@ use FindBin;
 use lib File::Spec->catdir($FindBin::RealBin,"lib");
 
 use SSH::Key;
+use HexDump;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 $Data::Dumper::Sortkeys = 1;
 $Data::Dumper::Quotekeys = 0;
 
-# A generic hexdumper
-sub hexdump(\$) {
-    my ($buf,$size) = @_;
-    my $r;
-
-    if (!defined $$buf) {
-        return undef;
-    }
-    if (!defined($size)) {
-        $size = length $$buf;
-    }
-
-    my $offset=0;
-    while ($offset<$size) {
-        if (defined($r)) {
-            # we have more than one line, so end the previous one first
-            $r.="\n";
-        }
-        my @buf16= split //, substr($$buf,$offset,16);
-        $r.=sprintf('%03x: ',$offset);
-        for my $i (0..15) {
-            if (defined $buf16[$i]) {
-                $r.=sprintf('%02x ',ord($buf16[$i]));
-            } else {
-                $r.=sprintf('   ');
-            }
-        }
-        $r.= "| ";
-        for my $i (@buf16) {
-            if (defined $i && ord($i)>0x20 && ord($i)<0x7f) {
-                $r.=sprintf('%s',$i);
-            } else {
-                $r.=sprintf(' ');
-            }
-        }
-        $offset+=16;
-    }
-    return $r;
-}
 
 sub dump_one {
     my $encoded = shift;
@@ -71,12 +33,12 @@ sub dump_one {
 
     my $binary = $key->{binary} ||'';
     print("binary object:\n");
-    print(hexdump($binary),"\n\n");
+    print(HexDump::hexdump($binary),"\n\n");
 
     my $field_nr = 0;
     for my $field (@{$key->{fields}}) {
         print("Field $field_nr\n");
-        print(hexdump($field),"\n");
+        print(HexDump::hexdump($field),"\n");
         $field_nr++;
     }
     print("Encoded length:  ",length($encoded),"\n");
