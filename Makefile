@@ -33,4 +33,8 @@ cover:
 
 test:
 	./test_harness
+	./check_syntax_ssh_known_hosts test.known_hosts.good
+	./check_syntax_ssh_authorized_keys test.authorized_keys.good
+	! ./check_syntax_ssh_known_hosts test.known_hosts.bad
+	! ./check_syntax_ssh_authorized_keys test.authorized_keys.bad
 
